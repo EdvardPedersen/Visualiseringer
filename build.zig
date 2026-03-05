@@ -38,7 +38,19 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
     run_cmd.step.dependOn(b.getInstallStep());
 
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    const sort_exe = b.addExecutable(.{
+        .name = "Sorting",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/sort.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    sort_exe.root_module.linkLibrary(sdl_lib);
+
+    b.installArtifact(sort_exe);
+    const sort_run_step = b.step("sort", "Run the app");
+    const sort_run_cmd = b.addRunArtifact(sort_exe);
+    sort_run_step.dependOn(&sort_run_cmd.step);
+    sort_run_cmd.step.dependOn(b.getInstallStep());
 }
