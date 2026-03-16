@@ -10,9 +10,9 @@ const MAX_ITERATIONS = 255;
 
 pub fn kernel(pixels: [*]u32, stage: f32) void {
     for(0..HEIGHT) |y| {
-        const y0: f64 = ((@as(f64, @floatFromInt(y)) / @as(f64, @floatFromInt(HEIGHT))) * 2.24) - 1.12;
+        const y0: f64 = ((@as(f64, @floatFromInt(y)) / @as(f64, @floatFromInt(HEIGHT))) * 2.24 * stage) - 1.12 * stage;
         for(0..WIDTH) |x| {
-            const x0: f64 = ((@as(f64, @floatFromInt(x)) / @as(f64, @floatFromInt(WIDTH))) * 2.47) - 2;
+            const x0: f64 = ((@as(f64, @floatFromInt(x)) / @as(f64, @floatFromInt(WIDTH))) * 2.47 * stage) - 2 * stage;
             var xf: f64 = 0;
             var yf: f64 = 0;
             var iteration: u32 = 0;

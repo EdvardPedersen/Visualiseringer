@@ -4,8 +4,8 @@ layout (location = 0) out vec4 outColor;
 layout (set = 3, binding = 0) uniform stage {float prog; };
 
 void main() {
-    double x0 = ((gl_FragCoord.x / 1024) * 2.47) - 2.00;
-    double y0 = ((gl_FragCoord.y / 768) * 2.24) - 1.12;
+    double x0 = ((gl_FragCoord.x / 1024) * 2.47 * prog) - 2.00 * prog;
+    double y0 = ((gl_FragCoord.y / 768) * 2.24 * prog) - 1.12 * prog;
     double xf = 0;
     double yf = 0;
     double iteration = 0;
