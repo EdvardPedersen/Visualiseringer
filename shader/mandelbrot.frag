@@ -1,6 +1,7 @@
 #version 450
 
 layout (location = 0) out vec4 outColor;
+layout (set = 3, binding = 0) uniform stage {float prog; };
 
 void main() {
     double x0 = ((gl_FragCoord.x / 1024) * 2.47) - 2.00;
@@ -14,6 +15,6 @@ void main() {
         xf = xtemp;
         iteration += 1;
     }
-    outColor = vec4(0.0, 0.0, iteration/255.0, 1.0);
+    outColor = vec4(0.0, prog, iteration/255.0, 1.0);
     //outColor = vec4(1.0, 0.0, 1.0, 1.0);
 }

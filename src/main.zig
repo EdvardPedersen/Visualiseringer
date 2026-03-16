@@ -8,7 +8,7 @@ const WIDTH = 1024;
 const HEIGHT = 768;
 const MAX_ITERATIONS = 255;
 
-pub fn kernel(pixels: [*]u32) void {
+pub fn kernel(pixels: [*]u32, stage: f32) void {
     for(0..HEIGHT) |y| {
         const y0: f64 = ((@as(f64, @floatFromInt(y)) / @as(f64, @floatFromInt(HEIGHT))) * 2.24) - 1.12;
         for(0..WIDTH) |x| {
@@ -22,7 +22,7 @@ pub fn kernel(pixels: [*]u32) void {
                 xf = xtemp;
                 iteration += 1;
             }
-            pixels[x + (y * WIDTH)] = iteration << 8 | 0xff;
+            pixels[x + (y * WIDTH)] = @as(u32, @intFromFloat(stage * 255)) << 16 | iteration << 8 | 0xff;
         }
     }
 }
@@ -44,7 +44,7 @@ pub fn main(init: std.process.Init) !void {
         std.debug.print("We have issue!\n", .{});
         std.debug.print("{s}\n", .{c.SDL_GetError()});
     }
-    const shd = c.SDL_CreateGPUShader(dev, &.{.code_size = shader.len, .code = @ptrCast(shader.ptr), .entrypoint = "main", .num_samplers = 0, .num_storage_textures = 0, .num_storage_buffers = 0, .num_uniform_buffers = 0, .props = 0, .format = c.SDL_GPU_SHADERFORMAT_SPIRV, .stage = c.SDL_GPU_SHADERSTAGE_FRAGMENT});
+    const shd = c.SDL_CreateGPUShader(dev, &.{.code_size = shader.len, .code = @ptrCast(shader.ptr), .entrypoint = "main", .num_samplers = 0, .num_storage_textures = 0, .num_storage_buffers = 0, .num_uniform_buffers = 1, .props = 0, .format = c.SDL_GPU_SHADERFORMAT_SPIRV, .stage = c.SDL_GPU_SHADERSTAGE_FRAGMENT});
     if(shd == null) {
         std.debug.print("We have issue!\n", .{});
         std.debug.print("{s}\n", .{c.SDL_GetError()});
@@ -53,6 +53,7 @@ pub fn main(init: std.process.Init) !void {
     
     if(!c.SDL_SetGPURenderState(rend, rend_state)) std.debug.print("Unable to set render state\n", .{});
     var fps: u32 = 0;
+    var stage: f32 = 0.0;
     _ = c.SDL_SetRenderDrawColor(rend, 255, 255, 255, 255);
     while(true) {
         frames += 1;
@@ -73,19 +74,22 @@ pub fn main(init: std.process.Init) !void {
             var pixels: ?*anyopaque = undefined;
             var pitch: i32 = undefined;
             _ = c.SDL_LockTexture(tex, null, &pixels, &pitch);
-            kernel(@ptrCast(@alignCast(pixels)));
+            kernel(@ptrCast(@alignCast(pixels)), stage);
             c.SDL_UnlockTexture(tex);
             _ = c.SDL_RenderTexture(rend, tex, null, null);
             _ = c.SDL_RenderDebugTextFormat(rend, 0.1, 0.1, "CPU %d fps", fps);
         } else {
             _ = c.SDL_SetGPURenderState(rend, rend_state);
+            _ = c.SDL_SetGPURenderStateFragmentUniforms(rend_state, 0, &stage, @sizeOf(f32));
             _ = c.SDL_RenderFillRect(rend, null);
             _ = c.SDL_SetGPURenderState(rend, null);
             _ = c.SDL_RenderDebugTextFormat(rend, 0.1, 0.1, "GPU %d fps", fps);
         }
 
         _ = c.SDL_RenderPresent(rend);
-        if(c.SDL_GetTicks() - last_time > 1000) {
+        const millis = c.SDL_GetTicks() - last_time;
+        stage = @as(f32, @floatFromInt(millis)) / 1000.0;
+        if(millis > 1000) {
             last_time = c.SDL_GetTicks();
             std.debug.print("{} fps\n", .{frames});
             fps = frames;
