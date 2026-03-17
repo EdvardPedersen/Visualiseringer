@@ -1,36 +1,33 @@
 const std = @import("std");
 const Io = std.Io;
 
-const c = @cImport({@cInclude("SDL3/SDL.h");});
+const c = @cImport({
+    @cInclude("SDL3/SDL.h");
+});
 const shader = @embedFile("shader.spv");
 
 const WIDTH = 1024;
 const HEIGHT = 768;
 const MAX_ITERATIONS = 255;
 
-pub fn kernel(pixels: [*]u32, stage: f32) void {
-    for(0..HEIGHT) |y| {
-        const y0: f64 = ((@as(f64, @floatFromInt(y)) / @as(f64, @floatFromInt(HEIGHT))) * 2.24 * stage) - 1.12 * stage;
-        for(0..WIDTH) |x| {
-            const x0: f64 = ((@as(f64, @floatFromInt(x)) / @as(f64, @floatFromInt(WIDTH))) * 2.47 * stage) - 2 * stage;
-            var xf: f64 = 0;
-            var yf: f64 = 0;
-            var iteration: u32 = 0;
-            while(xf*xf + yf*yf < 4 and iteration < MAX_ITERATIONS) {
-                const xtemp: f64 = xf*xf - yf*yf + x0;
-                yf = 2*xf*yf + y0;
-                xf = xtemp;
-                iteration += 1;
-            }
-            pixels[x + (y * WIDTH)] = @as(u32, @intFromFloat(stage * 255)) << 16 | iteration << 8 | 0xff;
+pub fn kernel(pixels: [*]u32, stage: f32, y: u32) void {
+    const y0: f64 = ((@as(f64, @floatFromInt(y)) / @as(f64, @floatFromInt(HEIGHT))) * 2.24 * stage) - 1.12 * stage;
+    for (0..WIDTH) |x| {
+        const x0: f64 = ((@as(f64, @floatFromInt(x)) / @as(f64, @floatFromInt(WIDTH))) * 2.47 * stage) - 2 * stage;
+        var xf: f64 = 0;
+        var yf: f64 = 0;
+        var iteration: u32 = 0;
+        while (xf * xf + yf * yf < 4 and iteration < MAX_ITERATIONS) {
+            const xtemp: f64 = xf * xf - yf * yf + x0;
+            yf = 2 * xf * yf + y0;
+            xf = xtemp;
+            iteration += 1;
         }
+        pixels[x + (y * WIDTH)] = iteration << 8 | 0xff;
     }
 }
 
-
 pub fn main(init: std.process.Init) !void {
-    _ = init;
-
     _ = c.SDL_Init(c.SDL_INIT_VIDEO);
     const win = c.SDL_CreateWindow("Mandelbrot set", WIDTH, HEIGHT, c.SDL_WINDOW_VULKAN);
     const rend = c.SDL_CreateGPURenderer(null, win);
@@ -38,31 +35,31 @@ pub fn main(init: std.process.Init) !void {
 
     var last_time: u64 = c.SDL_GetTicks();
     var frames: u32 = 0;
-    var use_gpu: bool = true;
+    var use_gpu: u32 = 0;
     const dev = c.SDL_GetGPURendererDevice(rend);
-    if(dev == null) {
+    if (dev == null) {
         std.debug.print("We have issue!\n", .{});
         std.debug.print("{s}\n", .{c.SDL_GetError()});
     }
-    const shd = c.SDL_CreateGPUShader(dev, &.{.code_size = shader.len, .code = @ptrCast(shader.ptr), .entrypoint = "main", .num_samplers = 0, .num_storage_textures = 0, .num_storage_buffers = 0, .num_uniform_buffers = 1, .props = 0, .format = c.SDL_GPU_SHADERFORMAT_SPIRV, .stage = c.SDL_GPU_SHADERSTAGE_FRAGMENT});
-    if(shd == null) {
+    const shd = c.SDL_CreateGPUShader(dev, &.{ .code_size = shader.len, .code = @ptrCast(shader.ptr), .entrypoint = "main", .num_samplers = 0, .num_storage_textures = 0, .num_storage_buffers = 0, .num_uniform_buffers = 1, .props = 0, .format = c.SDL_GPU_SHADERFORMAT_SPIRV, .stage = c.SDL_GPU_SHADERSTAGE_FRAGMENT });
+    if (shd == null) {
         std.debug.print("We have issue!\n", .{});
         std.debug.print("{s}\n", .{c.SDL_GetError()});
     }
-    const rend_state = c.SDL_CreateGPURenderState(rend, @constCast(&c.SDL_GPURenderStateCreateInfo{.fragment_shader = shd, .num_sampler_bindings = 0, .sampler_bindings = null, .num_storage_textures = 0, .storage_textures = 0, .num_storage_buffers = 0, .storage_buffers = null, .props = 0}));
-    
-    if(!c.SDL_SetGPURenderState(rend, rend_state)) std.debug.print("Unable to set render state\n", .{});
+    const rend_state = c.SDL_CreateGPURenderState(rend, @constCast(&c.SDL_GPURenderStateCreateInfo{ .fragment_shader = shd, .num_sampler_bindings = 0, .sampler_bindings = null, .num_storage_textures = 0, .storage_textures = 0, .num_storage_buffers = 0, .storage_buffers = null, .props = 0 }));
+
+    if (!c.SDL_SetGPURenderState(rend, rend_state)) std.debug.print("Unable to set render state\n", .{});
     var fps: u32 = 0;
     var stage: f32 = 0.0;
     _ = c.SDL_SetRenderDrawColor(rend, 255, 255, 255, 255);
-    while(true) {
+    while (true) {
         frames += 1;
         var ev: c.SDL_Event = undefined;
-        while(c.SDL_PollEvent(&ev)) {
-            if(ev.type == c.SDL_EVENT_QUIT) return;
-            if(ev.type == c.SDL_EVENT_KEY_DOWN) {
-                use_gpu = !use_gpu;
-                if(use_gpu) {
+        while (c.SDL_PollEvent(&ev)) {
+            if (ev.type == c.SDL_EVENT_QUIT) return;
+            if (ev.type == c.SDL_EVENT_KEY_DOWN) {
+                use_gpu = (use_gpu + 1) % 3;
+                if (use_gpu == 0) {
                     _ = c.SDL_SetGPURenderState(rend, rend_state);
                 } else {
                     _ = c.SDL_SetGPURenderState(rend, null);
@@ -70,14 +67,30 @@ pub fn main(init: std.process.Init) !void {
             }
         }
 
-        if(!use_gpu) {
+        if (use_gpu > 0) {
             var pixels: ?*anyopaque = undefined;
             var pitch: i32 = undefined;
             _ = c.SDL_LockTexture(tex, null, &pixels, &pitch);
-            kernel(@ptrCast(@alignCast(pixels)), stage);
+            if (use_gpu == 2) {
+                var futures: [HEIGHT]Io.Future(void) = undefined;
+                for (0..HEIGHT) |y| {
+                    futures[y] = init.io.async(kernel, .{ @ptrCast(@alignCast(pixels)), stage, @truncate(y) });
+                }
+                for (0..HEIGHT) |y| {
+                    futures[y].await(init.io);
+                }
+            } else {
+                for (0..HEIGHT) |y| {
+                    kernel(@ptrCast(@alignCast(pixels)), stage, @truncate(y));
+                }
+            }
             c.SDL_UnlockTexture(tex);
             _ = c.SDL_RenderTexture(rend, tex, null, null);
-            _ = c.SDL_RenderDebugTextFormat(rend, 0.1, 0.1, "CPU %d fps", fps);
+            if (use_gpu == 2) {
+                _ = c.SDL_RenderDebugTextFormat(rend, 0.1, 0.1, "CPU multithreaded %d fps", fps);
+            } else {
+                _ = c.SDL_RenderDebugTextFormat(rend, 0.1, 0.1, "CPU single threaded %d fps", fps);
+            }
         } else {
             _ = c.SDL_SetGPURenderState(rend, rend_state);
             _ = c.SDL_SetGPURenderStateFragmentUniforms(rend_state, 0, &stage, @sizeOf(f32));
@@ -89,7 +102,7 @@ pub fn main(init: std.process.Init) !void {
         _ = c.SDL_RenderPresent(rend);
         const millis = c.SDL_GetTicks() - last_time;
         stage = @as(f32, @floatFromInt(millis)) / 1000.0;
-        if(millis > 1000) {
+        if (millis > 1000) {
             last_time = c.SDL_GetTicks();
             std.debug.print("{} fps\n", .{frames});
             fps = frames;
