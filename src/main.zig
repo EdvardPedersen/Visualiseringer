@@ -52,6 +52,8 @@ pub fn main(init: std.process.Init) !void {
     var fps: u32 = 0;
     var stage: f32 = 0.0;
     _ = c.SDL_SetRenderDrawColor(rend, 255, 255, 255, 255);
+
+
     while (true) {
         frames += 1;
         var ev: c.SDL_Event = undefined;
@@ -72,13 +74,11 @@ pub fn main(init: std.process.Init) !void {
             var pitch: i32 = undefined;
             _ = c.SDL_LockTexture(tex, null, &pixels, &pitch);
             if (use_gpu == 2) {
-                var futures: [HEIGHT]Io.Future(void) = undefined;
+                var thread_group: std.Io.Group = .init;
                 for (0..HEIGHT) |y| {
-                    futures[y] = init.io.async(kernel, .{ @ptrCast(@alignCast(pixels)), stage, @truncate(y) });
+                    thread_group.async(init.io, kernel, .{ @ptrCast(@alignCast(pixels)), stage, @truncate(y) });
                 }
-                for (0..HEIGHT) |y| {
-                    futures[y].await(init.io);
-                }
+                try thread_group.await(init.io);
             } else {
                 for (0..HEIGHT) |y| {
                     kernel(@ptrCast(@alignCast(pixels)), stage, @truncate(y));
